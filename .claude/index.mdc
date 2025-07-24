@@ -1,0 +1,85 @@
+# CIM Project Index - Start Here
+
+This index provides the hierarchical structure for all CIM project documentation.
+Read files in the order presented for proper understanding.
+
+## 🎯 Quick Start for Claude Code
+
+1. **ALWAYS follow these core rules:**
+   - All code filenames MUST be lowercase (snake_case)
+   - Documentation files (README.md, CHANGELOG.md) follow standard casing
+   - Use Test-Driven Development (write tests first)
+   - Build incrementally in small, tested modules
+   - Never violate CQRS - no CRUD operations
+
+2. **Before coding, check:**
+   - `main.mdc` - Core development rules and workflow
+   - `quick-reference.mdc` - Common task templates
+   - Domain-specific files for the area you're working in
+
+## 📚 Documentation Structure
+
+### 1. Core Rules & Workflow
+- **main.mdc** - Primary development instructions and rules
+- **quick-reference.mdc** - Templates and common tasks
+- **tdd.mdc** - Test-Driven Development requirements
+
+### 2. Architecture & Design
+- **cim.mdc** - CIM system overview and concepts
+- **cim-architecture.mdc** - Architectural patterns and layers
+- **cim-modules.mdc** - Module structure and dependencies
+- **ddd.mdc** - Domain-Driven Design patterns
+
+### 3. Implementation Patterns
+- **event-sourcing-cim.mdc** - Event sourcing implementation
+- **ddd-ecs.mdc** - DDD-ECS integration patterns
+- **graphs.mdc** - Graph-based workflow representation
+
+### 4. Technology Stack
+- **rust.mdc** - Rust implementation guidelines
+- **nixos.mdc** - NixOS environment setup
+- **rust-nix.mdc** - Rust-Nix integration
+
+### 5. Quality & Validation
+- **qa.mdc** - Quality assurance checklist
+- **conceptual-spaces.mdc** - Semantic modeling
+
+## 🚀 Common Workflows
+
+### Adding a New Domain
+1. Read `quick-reference.mdc` → "New Domain Template"
+2. Follow `ddd.mdc` for bounded context rules
+3. Check `cim-modules.mdc` for dependencies
+
+### Creating an Event Handler
+1. See `quick-reference.mdc` → "Event Handler Template"
+2. Follow `event-sourcing-cim.mdc` for patterns
+3. Validate against `qa.mdc` checklist
+
+### Cross-Domain Integration
+1. Use `quick-reference.mdc` → "Cross-Domain Template"
+2. Follow `cim-architecture.mdc` decision trees
+3. Implement using `ddd.mdc` integration patterns
+
+## ⚠️ Critical Constraints
+
+1. **Zero CRUD** - Only commands produce events, events build projections
+2. **Layer Boundaries** - Never access infrastructure from domain
+3. **Module Independence** - No circular dependencies
+4. **Event Immutability** - Events are append-only facts
+
+## 📋 Development Checklist
+
+Before starting any task:
+- [ ] Read relevant domain documentation
+- [ ] Check for existing patterns in codebase
+- [ ] Write tests first (TDD)
+- [ ] Follow naming conventions (lowercase)
+- [ ] Update progress tracking if requested
+
+## 🔍 Finding Information
+
+- **Concepts unclear?** → Start with `cim.mdc`
+- **Architecture questions?** → See `cim-architecture.mdc`
+- **Implementation how-to?** → Check `quick-reference.mdc`
+- **Quality concerns?** → Review `qa.mdc`

@@ -1,0 +1,311 @@
+# Quick Reference - CIM Development Templates
+
+## 🎯 New Domain Template
+
+```rust
+// File: src/domains/[domain_name]/mod.rs
+pub mod commands;
+pub mod events;
+pub mod projections;
+pub mod types;
+
+// File: src/domains/[domain_name]/types.rs
+use cim_core::prelude::*;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct [Domain]Id(pub Uuid);
+
+#[derive(Debug, Clone)]
+pub struct [Domain]Aggregate {
+    pub id: [Domain]Id,
+    pub version: EventVersion,
+    // domain-specific fields
+}
+
+// File: src/domains/[domain_name]/events.rs
+use super::types::*;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum [Domain]Event {
+    Created { id: [Domain]Id, /* fields */ },
+    Updated { id: [Domain]Id, /* fields */ },
+}
+
+impl Event for [Domain]Event {
+    fn event_type(&self) -> &'static str {
+        match self {
+            Self::Created { .. } => "[domain].created",
+            Self::Updated { .. } => "[domain].updated",
+        }
+    }
+}
+
+// File: src/domains/[domain_name]/commands.rs
+use super::{events::*, types::*};
+
+#[derive(Debug)]
+pub enum [Domain]Command {
+    Create { /* fields */ },
+    Update { id: [Domain]Id, /* fields */ },
+}
+
+pub fn handle_command(
+    cmd: [Domain]Command,
+    state: Option<&[Domain]Aggregate>,
+) -> Result<Vec<[Domain]Event>, CommandError> {
+    match (cmd, state) {
+        ([Domain]Command::Create { .. }, None) => {
+            Ok(vec![[Domain]Event::Created { 
+                id: [Domain]Id(Uuid::new_v4()),
+                // map fields
+            }])
+        }
+        ([Domain]Command::Create { .. }, Some(_)) => {
+            Err(CommandError::AlreadyExists)
+        }
+        ([Domain]Command::Update { id, .. }, Some(agg)) if agg.id == id => {
+            Ok(vec![[Domain]Event::Updated { id, /* fields */ }])
+        }
+        _ => Err(CommandError::NotFound),
+    }
+}
+
+// File: src/domains/[domain_name]/projections.rs
+use super::{events::*, types::*};
+
+pub fn apply_event(
+    state: Option<[Domain]Aggregate>,
+    event: &[Domain]Event,
+) -> [Domain]Aggregate {
+    match (state, event) {
+        (None, [Domain]Event::Created { id, .. }) => {
+            [Domain]Aggregate {
+                id: id.clone(),
+                version: EventVersion(1),
+                // initialize fields
+            }
+        }
+        (Some(mut agg), [Domain]Event::Updated { .. }) => {
+            agg.version = EventVersion(agg.version.0 + 1);
+            // update fields
+            agg
+        }
+        _ => panic!("Invalid event sequence"),
+    }
+}
+```
+
+## 🔄 Event Handler Template
+
+```rust
+// File: src/handlers/[source]_to_[target]_handler.rs
+use cim_core::prelude::*;
+use crate::domains::{[source], [target]};
+
+pub struct [Source]To[Target]Handler {
+    command_bus: Arc<dyn CommandBus>,
+}
+
+impl EventHandler for [Source]To[Target]Handler {
+    type Event = [source]::events::[Source]Event;
+    
+    async fn handle(&self, event: &Self::Event) -> Result<(), HandlerError> {
+        match event {
+            [Source]Event::Created { id, .. } => {
+                let cmd = [target]::commands::[Target]Command::Create {
+                    source_id: id.clone(),
+                    // map fields
+                };
+                self.command_bus.send(cmd).await?;
+            }
+            _ => {} // handle other events
+        }
+        Ok(())
+    }
+}
+
+// Test file: src/handlers/[source]_to_[target]_handler_test.rs
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[tokio::test]
+    async fn test_creates_target_on_source_created() {
+        // Arrange
+        let command_bus = MockCommandBus::new();
+        let handler = [Source]To[Target]Handler { 
+            command_bus: Arc::new(command_bus.clone()) 
+        };
+        
+        let event = [Source]Event::Created { 
+            id: [Source]Id(Uuid::new_v4()),
+            // fields
+        };
+        
+        // Act
+        handler.handle(&event).await.unwrap();
+        
+        // Assert
+        let commands = command_bus.received_commands();
+        assert_eq!(commands.len(), 1);
+        // assert command details
+    }
+}
+```
+
+## 🌐 Cross-Domain Integration Template
+
+```rust
+// File: src/integration/[domain_a]_[domain_b]_integration.rs
+use cim_core::prelude::*;
+
+/// Translates DomainA events to DomainB commands
+pub struct DomainADomainBIntegration {
+    event_store: Arc<dyn EventStore>,
+    command_bus: Arc<dyn CommandBus>,
+}
+
+impl DomainADomainBIntegration {
+    pub async fn process_event(&self, event: DomainAEvent) -> Result<()> {
+        match event {
+            DomainAEvent::SomethingHappened { correlation_id, .. } => {
+                // Check if we need to act
+                let existing = self.event_store
+                    .load_events("domain_b", &correlation_id)
+                    .await?;
+                
+                if existing.is_empty() {
+                    let cmd = DomainBCommand::React { 
+                        correlation_id,
+                        // mapped data
+                    };
+                    self.command_bus.send(cmd).await?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+```
+
+## 📊 Projection Builder Template
+
+```rust
+// File: src/projections/[projection_name].rs
+use cim_core::prelude::*;
+
+#[derive(Debug, Clone, Default)]
+pub struct [Projection]View {
+    pub items: HashMap<ItemId, ItemData>,
+    pub indexes: HashMap<String, HashSet<ItemId>>,
+}
+
+pub struct [Projection]Builder;
+
+impl ProjectionBuilder for [Projection]Builder {
+    type View = [Projection]View;
+    type Event = DomainEvent; // Union type of all relevant events
+    
+    fn apply(&self, view: &mut Self::View, event: &Self::Event) {
+        match event {
+            DomainEvent::ItemCreated { id, category, .. } => {
+                view.items.insert(id.clone(), ItemData { /* ... */ });
+                view.indexes
+                    .entry(category.clone())
+                    .or_default()
+                    .insert(id.clone());
+            }
+            DomainEvent::ItemUpdated { id, .. } => {
+                if let Some(item) = view.items.get_mut(id) {
+                    // update item
+                }
+            }
+        }
+    }
+}
+```
+
+## 🧪 Test Template
+
+```rust
+// File: src/domains/[domain]/[module]_test.rs
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proptest::prelude::*;
+    
+    // Unit test
+    #[test]
+    fn test_command_creates_event() {
+        // Arrange
+        let cmd = DomainCommand::Create { /* ... */ };
+        
+        // Act
+        let events = handle_command(cmd, None).unwrap();
+        
+        // Assert
+        assert_eq!(events.len(), 1);
+        matches!(events[0], DomainEvent::Created { .. });
+    }
+    
+    // Property test
+    proptest! {
+        #[test]
+        fn test_apply_event_increases_version(
+            initial_version: u64,
+            event: DomainEvent,
+        ) {
+            let initial = DomainAggregate {
+                version: EventVersion(initial_version),
+                // ...
+            };
+            
+            let result = apply_event(Some(initial), &event);
+            
+            prop_assert!(result.version.0 > initial_version);
+        }
+    }
+    
+    // Integration test
+    #[tokio::test]
+    async fn test_full_command_handling() {
+        let event_store = MemoryEventStore::new();
+        let handler = DomainCommandHandler::new(event_store.clone());
+        
+        let cmd = DomainCommand::Create { /* ... */ };
+        handler.handle(cmd).await.unwrap();
+        
+        let events = event_store.load_all().await.unwrap();
+        assert_eq!(events.len(), 1);
+    }
+}
+```
+
+## 🚀 Common Tasks
+
+### Run Tests for Specific Domain
+```bash
+cargo test --package cim_[domain] -- --nocapture
+```
+
+### Add New Event Type
+1. Add variant to domain's event enum
+2. Update `event_type()` match
+3. Add handler in projection builders
+4. Write test for new event
+
+### Debug Event Flow
+```rust
+// Add to any handler
+tracing::debug!(
+    event_type = event.event_type(),
+    aggregate_id = ?event.aggregate_id(),
+    "Processing event"
+);
+```
+
+### Check Module Dependencies
+```bash
+# From project root
+cargo tree --package cim_[module] --depth 1
+```

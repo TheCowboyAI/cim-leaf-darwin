@@ -1,0 +1,126 @@
+# CIM Core Principles - Single Source of Truth
+
+This file consolidates all core principles to eliminate redundancy across documentation.
+
+## 🏗️ Architectural Principles
+
+### 1. CQRS with Event Sourcing
+- **Zero CRUD** - No Create/Read/Update/Delete operations
+- **Command → Event → Projection** - Unidirectional data flow
+- **Events are Facts** - Immutable, append-only, never deleted
+- **Projections are Views** - Derived from events, can be rebuilt
+
+### 2. Domain-Driven Design (DDD)
+- **Bounded Contexts** - Clear domain boundaries
+- **Ubiquitous Language** - Consistent terminology within domains
+- **Aggregates** - Consistency boundaries for business rules
+- **Value Objects** - Immutable domain concepts
+
+### 3. Layer Architecture
+```
+Presentation Layer (UI/API)
+    ↓ (commands only)
+Application Layer (Use Cases)
+    ↓ (orchestration)
+Domain Layer (Business Logic)
+    ↓ (abstractions only)
+Infrastructure Layer (External Systems)
+```
+
+**Layer Rules:**
+- Domain NEVER depends on infrastructure
+- Infrastructure implements domain interfaces
+- Application orchestrates between layers
+- Presentation only sends commands
+
+### 4. Module Design
+- **Single Responsibility** - One module, one purpose
+- **No Circular Dependencies** - Strict acyclic graph
+- **Interface Segregation** - Small, focused interfaces
+- **Dependency Inversion** - Depend on abstractions
+
+## 🧪 Testing Requirements
+
+### Coverage Targets
+- **Unit Tests**: 95% minimum for domain logic
+- **Integration Tests**: All infrastructure adapters
+- **End-to-End Tests**: Critical user journeys
+- **Property Tests**: Event sourcing invariants
+
+### Test-Driven Development (TDD)
+1. **Red** - Write failing test first
+2. **Green** - Minimal code to pass
+3. **Refactor** - Improve without breaking
+
+## 🔄 Event Patterns
+
+### Event Design
+```rust
+pub trait Event: Send + Sync {
+    fn event_type(&self) -> &'static str;
+    fn aggregate_id(&self) -> &AggregateId;
+    fn occurred_at(&self) -> &DateTime<Utc>;
+    fn version(&self) -> EventVersion;
+}
+```
+
+### Event Correlation
+- **Correlation ID** - Links related events across domains
+- **Causation ID** - Direct cause-effect relationships
+- **Conversation ID** - Groups related workflows
+
+### Cross-Domain Communication
+1. Domain A publishes event
+2. Integration service subscribes
+3. Translates to Domain B command
+4. Domain B processes independently
+
+## 🚫 Anti-Patterns to Avoid
+
+### Never Do This:
+- **Shared Mutable State** - Use events instead
+- **Synchronous Cross-Domain Calls** - Use async messaging
+- **Domain Logic in Infrastructure** - Keep business rules pure
+- **Anemic Domain Models** - Behavior belongs with data
+- **God Objects** - Split into focused aggregates
+- **Leaky Abstractions** - Hide implementation details
+
+### Always Do This:
+- **Fail Fast** - Validate at domain boundaries
+- **Make Invalid States Unrepresentable** - Use types
+- **Explicit Over Implicit** - Clear intent in code
+- **Composition Over Inheritance** - Prefer traits/interfaces
+
+## 📊 Quality Metrics
+
+### Code Quality
+- **Cyclomatic Complexity** < 10 per function
+- **Coupling** - Low between modules
+- **Cohesion** - High within modules
+- **Test Coverage** - As specified above
+
+### Performance
+- **Event Processing** < 100ms p99
+- **Projection Updates** - Eventually consistent
+- **Memory Usage** - Bounded by design
+
+## 🔍 Decision Guidelines
+
+### When to Create a New Domain
+- Distinct business capability
+- Different consistency requirements
+- Separate deployment needs
+- Independent team ownership
+
+### When to Use Shared Kernel
+- Common value objects (Money, Email)
+- Shared specifications
+- Cross-cutting concerns
+
+### When to Split an Aggregate
+- Growing beyond 5-7 entities
+- Different consistency boundaries
+- Performance bottlenecks
+- Team friction
+
+Remember: These principles are non-negotiable. When in doubt, refer back to this document.

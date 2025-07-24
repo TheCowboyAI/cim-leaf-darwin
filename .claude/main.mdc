@@ -1,70 +1,94 @@
 ---
-description: Project Instructions
+description: CIM Development Rules and Workflow
 globs:
 alwaysApply: true
 ---
-# CRITICAL FILENAME RULES - HIGHEST PRIORITY
 
-**NEVER CREATE UPPERCASE FILENAMES**
-- ALL filenames MUST be lowercase with underscores (snake_case)
-- Examples: `ai_integration_summary.md`, `readme.md`, `changelog.md`
-- NOT: `AI_INTEGRATION_SUMMARY.md`, `README.md`, `CHANGELOG.md`
-- This applies to ALL file types: `.rs`, `.md`, `.toml`, `.json`, etc.
-- NO EXCEPTIONS - even for traditional uppercase files like README
+# CIM Development Rules - MUST FOLLOW
 
----
+## 🚨 CRITICAL: Filename Convention
+**ALL code files MUST be lowercase with underscores (snake_case)**
+- ✅ Correct: `event_handler.rs`, `domain_types.rs`, `readme.md`
+- ❌ Wrong: `EventHandler.rs`, `DomainTypes.rs`, `README.md`
+- Documentation files (README.md, CHANGELOG.md) use standard casing
+- This applies to ALL file extensions: `.rs`, `.toml`, `.json`, etc.
 
-** PRIMARY DIRECTIVE **
-You are a coding assistant specializing in CIM, The Composable Information Machine using comprehensive Domain Driven Design patterns.
-see documentation at: https://github.com/thecowboyai/alchemist
+## 📋 Core Development Rules
 
-YOU FOLLOW THE RULES IN .claude.
+### 1. Architecture Principles
+- **CQRS Only** - Zero CRUD operations allowed
+- **Event-Driven** - Commands produce events, events build projections
+- **Layer Boundaries** - Never access infrastructure from domain
+- **Single Responsibility** - Each module does ONE thing only
+- **Dependency Injection** - Inject dependencies, don't create them
 
-YOU **MUST** FOLLOW THE DOCUMENTATION IN /doc IT IS ORGANIZED BY CONTEXT
-MAINTAIN THE GRAPH OF OUR PROGRESS in /doc/progress/progress.json
+### 2. Development Workflow
+1. **Read First** - Check `/doc/design` and `/doc/plan` before coding
+2. **Test First** - Write tests before implementation (TDD)
+3. **Build Incrementally** - One module at a time
+4. **Git Add New Files** - Required for compilation in NixOS
+5. **Verify Each Step** - Confirm working before proceeding
 
-REFER TO THE GRAPHS FOR THE SINGLE SOURCE OF TRUTH AND CONTEXT ON PROGRESS
-UPDATE THE PROGRESS GRAPH WHEN MAKING ENHANCEMENTS OR EXTENSIONS
+### 3. Environment Context
+- You are in **NixOS with direnv** - shell is always devshell
+- Use **MCP tools** when available
+- Keep scope **minimal** - address only the task at hand
+- Update **progress graph** at `/doc/progress/progress.json`
 
-DEFINITION OF DONE:
-- DESIGNED
-- PLANNED
-- IMPLEMENTED
-- VERIFIED
-- TESTED
-- COMPLETE
-- DONE
+## 🎯 Task Execution Checklist
 
-Follow ./README.md
+### Before Starting:
+- [ ] Read relevant documentation in `.claude/`
+- [ ] Check `/doc/design` for architecture decisions
+- [ ] Review `/doc/plan` for implementation approach
+- [ ] Verify no naming conflicts (lowercase rule)
 
----
+### During Development:
+- [ ] Write test first (TDD)
+- [ ] Implement minimal solution
+- [ ] Run tests to verify
+- [ ] Git add new files
+- [ ] Document decisions
 
-YOU ARE IN NIXOS USING DIRENV
-ADJUST ANY SHELL ACCESS ACCORDINGLY, YOU ARE ALWAYS IN A DEVSHELL
-YOU ARE IN GIT, YOU MUST GIT ADD NEW FILES FOR THEM TO COMPILE
+### Definition of Done:
+- [ ] DESIGNED - Architecture documented
+- [ ] PLANNED - Implementation approach clear
+- [ ] IMPLEMENTED - Code complete
+- [ ] VERIFIED - Manual testing passed
+- [ ] TESTED - Automated tests pass
+- [ ] COMPLETE - All acceptance criteria met
+- [ ] DONE - Ready for production
 
-ALWAYS USE THE MCP TOOLS AVAILABLE TO YOU AS WELL AS YOUR BUILT-IN TOOLS FOR WEB AND DOCS
-KEEP YOUR SCOPE AS SMALL AS POSSIBLE TO ADDRESS THE ISSUE AT HAND
+## 🛠️ Common Commands
 
-YOU MUST BUILD INCREMENTALY, BUILD IN MODULES, ONE AT A TIME. YOU MUST FOLLOW TDD.
+```bash
+# Run tests for specific module
+cargo test --package cim_[module]
 
-ALWAYS DOCUMENT AND JUSTIFY YOUR ACTIONS
-CONFIRM OPERATION BEFORE MOVING TO THE NEXT PHASE
-ALL FEATURES CLAIMED TO BE IMPLEMENTED MUST WORK AND PASS TESTS
+# Check compilation
+cargo check
 
-**USE CONTINUOUS IMPROVEMENT**
+# Run with logging
+RUST_LOG=debug cargo run
 
-YOU **MUST** FOLLOW THE DESIGN IN /doc/design
-YOU **MUST** FOLLOW THE PLAN IN /doc/plan
+# Update progress (example)
+echo '{"current_task": "implementing_domain_x", "status": "in_progress"}' > /doc/progress/progress.json
+```
 
-IF THERE IS A DISCREPANCY, YOU MUST STOP AND ASK FOR GUIDANCE. IF THE API IS UNUSED OR USED INCORRECTLY, FIX IT, DON'T DELETE IT.
+## ⚠️ When to Stop and Ask
 
-FOLLOW SRP - SINGLE RESPONSIBILITY PRINCIPLE
-**EVERYTHING HAS ONE AND ONLY ONE RESPONSIBILITY**
+**STOP if you encounter:**
+- Conflict between `/doc/design` and `/doc/plan`
+- Unclear architectural decision
+- Missing domain boundaries
+- Circular dependencies
+- Need to violate CQRS principles
 
-ELEMENTS DO ONE THING AND STRIVES TO BE THE ONE IRREDUCIBLE WAY TO BE.
+## 📚 Quick Links
 
-WE USE DEPENDENCY INJECTION, IF YOU NEED SOMETHING, INJECT IT OVER CREATING IT OR DEPENDING ON IT DIRECTLY.
+- **Architecture**: See `cim-architecture.mdc`
+- **Templates**: Use `quick-reference.mdc`
+- **Testing**: Follow `tdd.mdc`
+- **Quality**: Check against `qa.mdc`
 
-RESEARCH MATERIAL AND BACKGROUND REQUIREMENTS ARE AVAILABLE IN /doc/research
-USE THESE AS REFERENCE GUIDES
+Remember: When in doubt, check `index.mdc` for navigation.

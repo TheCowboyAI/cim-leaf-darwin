@@ -6,6 +6,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a CIM (Composable Information Machine) leaf node for Darwin (macOS). The project uses Nix flakes for reproducible builds and nix-darwin for system configuration. Currently in initial setup phase with comprehensive architectural documentation in `.claude/`.
 
+## IMPORTANT: Development Instructions
+
+**Start with `.claude/index.mdc`** for navigation, then follow these in order:
+1. **`.claude/main.mdc`** - Core development rules and workflow
+2. **`.claude/core-principles.mdc`** - Architectural principles (single source of truth)
+3. **`.claude/quick-reference.mdc`** - Templates and code examples
+
+Key rules to ALWAYS follow:
+- **Lowercase filenames only** (snake_case for code files)
+- **Test-Driven Development** - Write tests first
+- **Zero CRUD** - Only CQRS with event sourcing
+- **Strict layer boundaries** - Domain never touches infrastructure
+
+When coding, always check templates in `quick-reference.mdc` first.
+
 ## Development Commands
 
 ### System Setup and Rebuilds
