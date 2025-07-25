@@ -111,20 +111,30 @@ cd cim-leaf-darwin
 
 ## Step 5: Test Template Setup Process
 
+First, configure your leaf by editing the Nix files:
+
 ```bash
-# Run the setup script
-./scripts/setup_leaf.sh
+# Copy example configuration
+cp examples/configs/dev-local.nix leaf-config.nix
+
+# Edit the configuration
+# Replace USER with your actual username where needed
+# Update any other settings as desired
+nano leaf-config.nix
 ```
 
-When prompted, enter:
-- **Leaf name**: `test-mac-1`
-- **Description**: `Test Mac deployment`
-- **Domain**: `testing`
-- **Region**: `local`
-- **Environment**: `dev`
-- **GitHub org**: `TheCowboyAI` (or your org)
-- **Cluster name**: `test-cluster`
-- **Upstream host**: `localhost` (we'll run local NATS)
+Then run the deterministic setup:
+
+```bash
+# Run the setup script
+./scripts/setup_leaf_deterministic.sh
+```
+
+The script will:
+- Read configuration from `leaf-config.nix`
+- Display the configuration for confirmation
+- Generate domain modules and JSON configs
+- Initialize event tracking
 
 Verify the setup:
 
@@ -137,6 +147,9 @@ ls modules/domains/
 
 # Check git was configured
 git config user.name
+
+# Check event stream initialized
+./scripts/event_query.sh status
 ```
 
 ## Step 6: Test Local Deployment
@@ -319,8 +332,10 @@ curl -L https://install.determinate.systems/nix | sh -s -- install
 # 2. Clone template
 git clone <your-repo> && cd cim-leaf-darwin
 
-# 3. Setup
-./scripts/setup_leaf.sh
+# 3. Setup (configure first!)
+cp examples/configs/dev-local.nix leaf-config.nix
+# Edit leaf-config.nix if needed
+./scripts/setup_leaf_deterministic.sh
 
 # 4. Deploy
 darwin-rebuild switch --flake .

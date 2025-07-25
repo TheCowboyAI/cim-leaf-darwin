@@ -39,3 +39,7 @@ leaf.config.json
 
 # Keep template file in template repo only
 !leaf.config.json.template
+
+# Event store and projections
+events/
+projections/

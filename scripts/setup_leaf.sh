@@ -3,6 +3,10 @@
 
 set -euo pipefail
 
+# Source event store functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../lib/event_store.sh"
+
 echo "=== CIM Leaf Setup ==="
 echo ""
 
@@ -15,6 +19,14 @@ else
     exit 1
 fi
 
+# Start setup correlation
+CORRELATION_ID=$(generate_correlation_id)
+
+# Emit setup started event
+emit_event "leaf.setup.started" "$HOSTNAME" "leaf" \
+    "$(jq -n '{status: "starting", timestamp: "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}')" \
+    "$CORRELATION_ID"
+
 # Gather configuration
 read -p "Leaf name (e.g., tokyo-prod-1): " LEAF_NAME
 read -p "Leaf description: " LEAF_DESCRIPTION
@@ -24,6 +36,23 @@ read -p "Environment (dev/staging/prod): " ENVIRONMENT
 read -p "GitHub organization: " GITHUB_ORG
 read -p "NATS cluster name: " CLUSTER_NAME
 read -p "Upstream NATS host (IP or hostname): " UPSTREAM_HOST
+
+# Emit configuration gathered event
+emit_event "leaf.setup.configured" "$LEAF_NAME" "leaf" \
+    "$(jq -n \
+        --arg name "$LEAF_NAME" \
+        --arg desc "$LEAF_DESCRIPTION" \
+        --arg domain "$DOMAIN_NAME" \
+        --arg region "$REGION_CODE" \
+        --arg env "$ENVIRONMENT" \
+        '{
+            leaf_name: $name,
+            description: $desc,
+            domain: $domain,
+            region: $region,
+            environment: $env
+        }')" \
+    "$CORRELATION_ID"
 
 # Create leaf configuration
 cp leaf.config.json.template leaf.config.json
@@ -129,6 +158,23 @@ git config user.email "cim-leaf-${LEAF_NAME}@${DOMAIN_NAME}.local"
 # Remove template file
 rm leaf.config.json.template
 
+# Emit setup completed event
+emit_event "leaf.setup.completed" "$LEAF_NAME" "leaf" \
+    "$(jq -n \
+        --arg name "$LEAF_NAME" \
+        --arg domain "$DOMAIN_NAME" \
+        '{
+            leaf_name: $name,
+            domain: $domain,
+            status: "completed"
+        }')" \
+    "$CORRELATION_ID"
+
+# Build initial projections
+echo "Building initial projections..."
+source "${SCRIPT_DIR}/../lib/projections.sh"
+update_all_projections
+
 echo ""
 echo "=== Setup Complete ==="
 echo ""
@@ -157,3 +203,7 @@ echo "   Visit http://<host>:3000 for Grafana dashboard"
 echo ""
 echo "8. Configure backups:"
 echo "   ./scripts/backup_restore.sh backup"
+echo ""
+echo "9. View deployment events:"
+echo "   ./scripts/event_query.sh status"
+echo "   ./scripts/event_query.sh timeline"

@@ -12,19 +12,28 @@ A GitHub template repository for deploying CIM (Composable Information Machine) 
 
 ### 2. Configure Your Leaf
 
-Run the setup script to configure your specific leaf:
+This template uses deterministic Nix configuration. Configure your leaf by editing:
+
+1. **`leaf-config.nix`** - Main leaf configuration
+   - Replace all placeholders (LEAF_NAME, DOMAIN_NAME, etc.)
+   - Set your deployment targets, NATS configuration, monitoring, etc.
+   - See `examples/configs/` for reference configurations
+
+2. **`topology.nix`** (optional) - Network topology definition
+   - Define regions, hubs, domains, and leaf assignments
+   - Configure routing policies and security settings
+
+3. Run the setup script to apply configuration:
 
 ```bash
-./scripts/setup_leaf.sh
+./scripts/setup_leaf_deterministic.sh
 ```
 
-This will prompt you for:
-- **Leaf name**: Unique identifier (e.g., `tokyo-prod-1`)
-- **Domain**: Business domain this leaf serves (e.g., `trading`, `analytics`)
-- **Region**: Geographic region code
-- **Environment**: dev/staging/prod
-- **NATS cluster**: Name of your CIM cluster
-- **Upstream host**: NATS server to connect to
+This will:
+- Read configuration from `leaf-config.nix`
+- Generate domain modules and JSON configs
+- Initialize the event store
+- Create initial projections
 
 ### 3. Commit Your Configuration
 
@@ -92,49 +101,88 @@ This will:
 
 ```
 cim-leaf-[NAME]/
-├── leaf.config.json       # Leaf-specific configuration
+├── leaf-config.nix        # Deterministic leaf configuration
+├── topology.nix           # Network topology definition
+├── leaf.config.json       # Auto-generated from Nix
 ├── modules/
 │   ├── nats.nix          # NATS service configuration
+│   ├── monitoring.nix    # Prometheus/Grafana setup
+│   ├── security.nix      # Security hardening
 │   └── domains/          # Domain-specific modules
 │       └── [DOMAIN].nix  # Your domain configuration
+├── examples/
+│   └── configs/          # Example configurations
+│       ├── prod-trading-tokyo.nix
+│       └── dev-local.nix
 ├── inventory/            # Hardware inventories
 ├── hosts/               # Generated host configs
+├── events/              # Event stream (append-only)
+├── projections/         # Current state from events
 └── scripts/             # Deployment automation
 ```
 
 ## 🔧 Leaf Configuration
 
-The `leaf.config.json` file contains:
+Configuration is defined in `leaf-config.nix`:
 
-```json
+```nix
 {
-  "leaf": {
-    "name": "tokyo-prod-1",
-    "domain": "trading",
-    "region": "ap-northeast-1",
-    "environment": "prod"
-  },
-  "cim_domain": {
-    "repository": "https://github.com/YourOrg/cim-domain-trading.git"
-  },
-  "nats": {
-    "cluster_name": "cim-prod",
-    "leaf_connections": [{
-      "name": "upstream",
-      "url": "nats://nats-hub.example.com:4222"
-    }]
-  }
+  leaf = {
+    name = "tokyo-prod-1";
+    domain = "trading";
+    region = "ap-northeast-1";
+    environment = "prod";
+  };
+  
+  nats = {
+    cluster = {
+      name = "cim-prod";
+      id = "PROD-TRADING-TOKYO-01";
+    };
+    leafNode = {
+      remotes = [{
+        url = "nats://hub-ap-northeast-1.cim.internal:4222";
+        credentials = "/etc/cim/creds/prod-trading-tokyo.creds";
+      }];
+    };
+  };
+  
+  deployment = {
+    primary = {
+      hostname = "tky-mac-prod-01";
+      ip = "10.4.1.10";
+    };
+    secondaries = [
+      { hostname = "tky-mac-prod-02"; ip = "10.4.1.11"; }
+    ];
+  };
 }
 ```
 
+The JSON file `leaf.config.json` is auto-generated from the Nix configuration.
+
 ## 🌐 Multi-Host Deployment
 
-Add multiple hosts to your leaf:
+Configure multiple hosts in `leaf-config.nix`:
 
-1. Extract inventory for each host
-2. Generate configurations
-3. Update `leaf.config.json` with all target hosts
-4. Deploy to each host
+```nix
+deployment = {
+  primary = {
+    hostname = "mac-prod-01";
+    ip = "10.1.1.10";
+  };
+  secondaries = [
+    { hostname = "mac-prod-02"; ip = "10.1.1.11"; }
+    { hostname = "mac-prod-03"; ip = "10.1.1.12"; }
+  ];
+};
+```
+
+Then deploy to each host:
+
+1. Extract inventory: `./scripts/extract_inventory.sh <ip> <user>`
+2. Deploy primary: `./scripts/deploy_host.sh <primary-host> <primary-ip>`
+3. Deploy secondaries: `./scripts/deploy_host.sh <host> <ip>`
 
 ## 🔄 Updating
 
@@ -229,9 +277,35 @@ The template includes optional monitoring:
 - **Node Exporter**: System metrics
 - **NATS Exporter**: NATS-specific metrics
 
+## 📈 Event Tracking
+
+All deployment activities are tracked as events:
+
+```bash
+# View current status from events
+./scripts/event_query.sh status
+
+# Show deployment timeline
+./scripts/event_query.sh timeline
+
+# View events for specific host
+./scripts/event_query.sh events mac-studio-1
+
+# Follow events in real-time
+./scripts/event_query.sh tail
+
+# Rebuild projections from events
+./scripts/event_query.sh rebuild
+```
+
+Events are stored in:
+- `events/` - Event stream (append-only)
+- `projections/` - Current state projections
+
 ## 📞 Support
 
 - Check NATS status: `curl http://[HOST]:8222/varz | jq`
 - View logs: `ssh admin@[HOST] 'tail -f /var/log/nats/*.log'`
 - Rebuild: `ssh admin@[HOST] 'darwin-rebuild switch'`
 - Health check: `ssh admin@[HOST] './scripts/health_check.sh'`
+- Event history: `./scripts/event_query.sh timeline`

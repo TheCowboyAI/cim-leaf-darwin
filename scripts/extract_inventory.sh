@@ -3,6 +3,10 @@
 
 set -euo pipefail
 
+# Source event store functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../lib/event_store.sh"
+
 # Check if hostname is provided
 if [ $# -eq 0 ]; then
     echo "Usage: $0 <hostname_or_ip> [username]"
@@ -20,6 +24,15 @@ OUTPUT_FILE="${OUTPUT_DIR}/hardware_${TIMESTAMP}.json"
 mkdir -p "$OUTPUT_DIR"
 
 echo "Extracting hardware inventory from ${USER}@${HOST}..."
+
+# Start correlation for this inventory extraction
+CORRELATION_ID=$(generate_correlation_id)
+
+# Emit extraction started event
+emit_deployment_event "inventory.extraction.started" "$HOST" \
+    "$(jq -n --arg user "$USER" --arg host "$HOST" --arg timestamp "$TIMESTAMP" \
+    '{user: $user, host: $host, timestamp: $timestamp}')" \
+    "$CORRELATION_ID"
 
 # Create temporary script to run on remote
 cat > /tmp/extract_mac_info.sh << 'SCRIPT'
@@ -96,18 +109,51 @@ get_sp_data() {
 SCRIPT
 
 # Copy and execute script on remote
-scp /tmp/extract_mac_info.sh "${USER}@${HOST}:/tmp/" >/dev/null
-ssh "${USER}@${HOST}" "chmod +x /tmp/extract_mac_info.sh && /tmp/extract_mac_info.sh" > "$OUTPUT_FILE"
-
-# Clean up
-ssh "${USER}@${HOST}" "rm -f /tmp/extract_mac_info.sh"
-rm -f /tmp/extract_mac_info.sh
-
-# Create a symlink to latest inventory
-ln -sf "hardware_${TIMESTAMP}.json" "${OUTPUT_DIR}/latest.json"
-
-echo "✓ Hardware inventory saved to: $OUTPUT_FILE"
-echo "✓ Latest inventory symlinked to: ${OUTPUT_DIR}/latest.json"
+if scp /tmp/extract_mac_info.sh "${USER}@${HOST}:/tmp/" >/dev/null 2>&1; then
+    if ssh "${USER}@${HOST}" "chmod +x /tmp/extract_mac_info.sh && /tmp/extract_mac_info.sh" > "$OUTPUT_FILE" 2>/dev/null; then
+        # Extraction succeeded
+        INVENTORY_DATA=$(cat "$OUTPUT_FILE")
+        
+        # Emit hardware discovered event
+        emit_deployment_event "inventory.hardware.discovered" "$HOST" \
+            "$INVENTORY_DATA" \
+            "$CORRELATION_ID"
+        
+        # Emit extraction completed event
+        emit_deployment_event "inventory.extraction.completed" "$HOST" \
+            "$(jq -n --arg file "$OUTPUT_FILE" --arg size "$(stat -f%z "$OUTPUT_FILE" 2>/dev/null || stat -c%s "$OUTPUT_FILE")" \
+            '{output_file: $file, size_bytes: $size}')" \
+            "$CORRELATION_ID"
+        
+        # Clean up
+        ssh "${USER}@${HOST}" "rm -f /tmp/extract_mac_info.sh" 2>/dev/null || true
+        rm -f /tmp/extract_mac_info.sh
+        
+        # Create a symlink to latest inventory
+        ln -sf "hardware_${TIMESTAMP}.json" "${OUTPUT_DIR}/latest.json"
+        
+        echo "✓ Hardware inventory saved to: $OUTPUT_FILE"
+        echo "✓ Latest inventory symlinked to: ${OUTPUT_DIR}/latest.json"
+    else
+        # Extraction failed
+        ERROR_MSG="Failed to execute inventory script on remote host"
+        emit_deployment_event "inventory.extraction.failed" "$HOST" \
+            "$(jq -n --arg error "$ERROR_MSG" '{error: $error}')" \
+            "$CORRELATION_ID"
+        
+        echo "✗ $ERROR_MSG" >&2
+        exit 1
+    fi
+else
+    # SCP failed
+    ERROR_MSG="Failed to copy script to remote host"
+    emit_deployment_event "inventory.extraction.failed" "$HOST" \
+        "$(jq -n --arg error "$ERROR_MSG" '{error: $error}')" \
+        "$CORRELATION_ID"
+    
+    echo "✗ $ERROR_MSG" >&2
+    exit 1
+fi
 
 # Display summary
 echo ""

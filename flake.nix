@@ -16,22 +16,35 @@
 
   outputs = inputs @ { self, nixpkgs, darwin, home-manager, deploy-rs, ... }:
     let
+      # Import configurations
+      leafConfig = import ./leaf-config.nix { lib = nixpkgs.lib; };
+      topologyConfig = import ./topology.nix { lib = nixpkgs.lib; };
+      
       # Function to create a Darwin configuration for a specific host
       mkDarwinConfig = { hostname, system ? "aarch64-darwin", username ? "admin" }:
         let
-          leafConfig = if builtins.pathExists ./leaf.config.json
-            then builtins.fromJSON (builtins.readFile ./leaf.config.json)
-            else null;
+          # Use Nix config as source of truth
+          nixLeafConfig = leafConfig;
           
-          domainName = if leafConfig != null 
-            then leafConfig.leaf.domain 
-            else "default";
-            
+          # Domain module based on config
+          domainName = nixLeafConfig.leaf.domain;
           domainModule = ./modules/domains/${domainName}.nix;
+          
+          # Find hub for this leaf from topology
+          leafName = nixLeafConfig.leaf.name;
+          leafTopology = topologyConfig.leafs.${leafName} or null;
+          hubConfig = if leafTopology != null 
+            then topologyConfig.hubs.${leafTopology.hub} or null
+            else null;
         in
         darwin.lib.darwinSystem {
           inherit system;
-          specialArgs = { inherit inputs hostname username leafConfig; };
+          specialArgs = { 
+            inherit inputs hostname username;
+            leafConfig = nixLeafConfig;
+            topologyConfig = topologyConfig;
+            hubConfig = hubConfig;
+          };
           modules = [
             ./darwin.nix
             ./modules/nats.nix
