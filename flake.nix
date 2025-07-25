@@ -30,6 +30,14 @@
           domainName = nixLeafConfig.leaf.domain;
           domainModule = ./modules/domains/${domainName}.nix;
           
+          # Hardware configuration from inventory (if exists)
+          hardwareConfig = ./inventory/${hostname}/hardware.nix;
+          hasHardwareConfig = builtins.pathExists hardwareConfig;
+          
+          # Host-specific configuration (if exists)
+          hostConfig = ./hosts/${hostname}/configuration.nix;
+          hasHostConfig = builtins.pathExists hostConfig;
+          
           # Find hub for this leaf from topology
           leafName = nixLeafConfig.leaf.name;
           leafTopology = topologyConfig.leafs.${leafName} or null;
@@ -65,7 +73,10 @@
                 extraSpecialArgs = { inherit hostname leafConfig; };
               };
             }
-          ] ++ nixpkgs.lib.optional (builtins.pathExists domainModule) domainModule;
+          ] 
+          ++ nixpkgs.lib.optional (builtins.pathExists domainModule) domainModule
+          ++ nixpkgs.lib.optional hasHardwareConfig hardwareConfig
+          ++ nixpkgs.lib.optional hasHostConfig hostConfig;
         };
       
       # Load inventory files to generate configurations
@@ -79,36 +90,83 @@
     in
     {
       # Darwin configurations for each host in inventory
-      darwinConfigurations = {
-        # Default configuration for manual setup
-        default = mkDarwinConfig {
-          hostname = "cim-leaf-darwin";
-          username = builtins.getEnv "USER";
-        };
-        
-        # Example: Add specific hosts as they're inventoried
-        # "mac-studio-1" = mkDarwinConfig {
-        #   hostname = "mac-studio-1";
-        #   username = "admin";
-        # };
-      };
+      darwinConfigurations = 
+        let
+          # Default configuration
+          defaultConfig = {
+            default = mkDarwinConfig {
+              hostname = "cim-leaf-darwin";
+              username = builtins.getEnv "USER";
+            };
+          };
+          
+          # Auto-generate configurations for all inventoried hosts
+          inventoryHosts = 
+            let
+              inventoryDir = ./inventory;
+              hasInventory = builtins.pathExists inventoryDir;
+              hostDirs = if hasInventory 
+                then builtins.attrNames (builtins.readDir inventoryDir)
+                else [];
+              
+              # Filter to only directories that have hardware.nix
+              validHosts = builtins.filter (host: 
+                builtins.pathExists (inventoryDir + "/${host}/hardware.nix")
+              ) hostDirs;
+            in
+              builtins.listToAttrs (map (host: {
+                name = host;
+                value = mkDarwinConfig {
+                  hostname = host;
+                  username = leafConfig.deployment.primary.username or "admin";
+                };
+              }) validHosts);
+        in
+          defaultConfig // inventoryHosts;
       
       # Deploy-rs configuration for remote deployment
       deploy = {
         sshUser = "admin";
         sshOpts = [ "-o" "StrictHostKeyChecking=no" ];
         
-        nodes = {
-          # Nodes will be added dynamically based on inventory
-          # Example:
-          # "mac-studio-1" = {
-          #   hostname = "192.168.1.100";
-          #   profiles.system = {
-          #     user = "root";
-          #     path = deploy-rs.lib.aarch64-darwin.activate.darwin self.darwinConfigurations."mac-studio-1";
-          #   };
-          # };
-        };
+        nodes = 
+          let
+            # Auto-generate deploy nodes from leaf configuration
+            primaryNode = 
+              let
+                primary = leafConfig.deployment.primary;
+              in
+                if primary.hostname != null && primary.ip != null
+                then {
+                  "${primary.hostname}" = {
+                    hostname = primary.ip;
+                    profiles.system = {
+                      user = "root";
+                      path = deploy-rs.lib.aarch64-darwin.activate.darwin 
+                        self.darwinConfigurations.${primary.hostname};
+                    };
+                  };
+                }
+                else {};
+            
+            # Secondary nodes
+            secondaryNodes = 
+              let
+                secondaries = leafConfig.deployment.secondaries or [];
+              in
+                builtins.listToAttrs (map (secondary: {
+                  name = secondary.hostname;
+                  value = {
+                    hostname = secondary.ip;
+                    profiles.system = {
+                      user = "root";
+                      path = deploy-rs.lib.aarch64-darwin.activate.darwin 
+                        self.darwinConfigurations.${secondary.hostname};
+                    };
+                  };
+                }) (builtins.filter (s: s.hostname != null && s.ip != null) secondaries));
+          in
+            primaryNode // secondaryNodes;
       };
       
       # Utility functions

@@ -134,6 +134,21 @@ if scp /tmp/extract_mac_info.sh "${USER}@${HOST}:/tmp/" >/dev/null 2>&1; then
         
         echo "✓ Hardware inventory saved to: $OUTPUT_FILE"
         echo "✓ Latest inventory symlinked to: ${OUTPUT_DIR}/latest.json"
+        
+        # Generate Nix configuration from inventory
+        NIX_OUTPUT="${OUTPUT_DIR}/hardware.nix"
+        if "${SCRIPT_DIR}/inventory_to_nix.sh" "$OUTPUT_FILE" "$NIX_OUTPUT"; then
+            echo "✓ Nix configuration generated: $NIX_OUTPUT"
+            
+            # Also generate a host-specific configuration if hostname is available
+            HOSTNAME=$(jq -r '.system_info.hostname' "$OUTPUT_FILE")
+            if [ -n "$HOSTNAME" ] && [ "$HOSTNAME" != "null" ]; then
+                HOST_DIR="hosts/${HOSTNAME}"
+                mkdir -p "$HOST_DIR"
+                cp "$NIX_OUTPUT" "${HOST_DIR}/hardware.nix"
+                echo "✓ Host configuration copied to: ${HOST_DIR}/hardware.nix"
+            fi
+        fi
     else
         # Extraction failed
         ERROR_MSG="Failed to execute inventory script on remote host"
