@@ -1,0 +1,41 @@
+# Nix
+result
+result-*
+
+# direnv
+.direnv/
+
+# Development directories
+.data/
+.logs/
+
+# macOS
+.DS_Store
+
+# Editor
+*.swp
+*~
+
+# Rust (for future implementation)
+target/
+Cargo.lock
+
+# NATS local data (if running in dev mode)
+nats-data/
+
+# Inventory files (contain serial numbers)
+inventory/*/*
+!inventory/.gitkeep
+
+# Generated host configurations
+hosts/*/*
+!hosts/.gitkeep
+
+# Domain sync directory
+.domain-sync/
+
+# Leaf configuration (created from template)
+leaf.config.json
+
+# Keep template file in template repo only
+!leaf.config.json.template

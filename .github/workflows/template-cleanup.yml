@@ -1,0 +1,38 @@
+name: Template Cleanup
+# This workflow runs when someone uses this template repository
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  template-cleanup:
+    name: Template Cleanup
+    runs-on: ubuntu-latest
+    if: github.event.repository.name != 'cim-leaf-darwin'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Cleanup
+        run: |
+          # Remove this workflow
+          rm -f .github/workflows/template-cleanup.yml
+          
+          # Update repository description in README
+          REPO_NAME="${{ github.event.repository.name }}"
+          sed -i "s/CIM Leaf Darwin Template/${REPO_NAME}/g" README.md
+          
+      - name: Commit changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .
+          git diff --quiet && git diff --staged --quiet || git commit -m "Clean up template files"
+          
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: main

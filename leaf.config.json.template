@@ -1,0 +1,42 @@
+{
+  "leaf": {
+    "name": "LEAF_NAME",
+    "description": "LEAF_DESCRIPTION",
+    "domain": "DOMAIN_NAME",
+    "region": "REGION_CODE",
+    "environment": "ENVIRONMENT"
+  },
+  "cim_domain": {
+    "repository": "https://github.com/YOUR_ORG/cim-domain-DOMAIN_NAME.git",
+    "branch": "main",
+    "modules": [
+      "core",
+      "events",
+      "commands",
+      "projections"
+    ]
+  },
+  "nats": {
+    "cluster_name": "CIM_CLUSTER_NAME",
+    "leaf_connections": [
+      {
+        "name": "upstream",
+        "url": "nats://UPSTREAM_HOST:4222"
+      }
+    ],
+    "jetstream": {
+      "domain": "DOMAIN_NAME",
+      "max_memory_store": "4GB",
+      "max_file_store": "100GB"
+    }
+  },
+  "deployment": {
+    "target_hosts": [
+      {
+        "hostname": "HOST_NAME",
+        "ip": "HOST_IP",
+        "role": "primary"
+      }
+    ]
+  }
+}
